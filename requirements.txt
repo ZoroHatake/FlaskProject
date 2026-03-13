@@ -8,7 +8,7 @@ flask_moment
 flask_babel
 elasticsearch
 redis
-rq
+rq==1.16.2
 jwt
 requests
 flask_httpauth

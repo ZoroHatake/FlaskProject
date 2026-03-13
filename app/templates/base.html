@@ -4,9 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     {% if title %}
-    <title>{{ title }} - Microblog</title>
+    <title>{{ title }} - Taskboard</title>
     {% else %}
-    <title>{{ _('Welcome to Microblog') }}</title>
+    <title>{{ _('Willkommen zum Taskboard') }}</title>
     {% endif %}
     <link
         href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
@@ -17,7 +17,7 @@
   <body>
     <nav class="navbar navbar-expand-lg bg-body-tertiary">
       <div class="container">
-        <a class="navbar-brand" href="{{ url_for('main.index') }}">Microblog</a>
+        <a class="navbar-brand" href="{{ url_for('main.index') }}">Taskboard</a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
           <span class="navbar-toggler-icon"></span>
         </button>
@@ -25,7 +25,9 @@
           <ul class="navbar-nav me-auto mb-2 mb-lg-0">
             <li class="nav-item">
               <a class="nav-link" aria-current="page" href="{{ url_for('main.index') }}">{{ _('Home') }}</a>
-            </li>
+            <li class="nav-item">
+           <a class="nav-link" aria-current="page" href="{{ url_for('main.task_list') }}">Tasks</a>
+          </li>
             <li class="nav-item">
               <a class="nav-link" aria-current="page" href="{{ url_for('main.explore') }}">{{ _('Explore') }}</a>
             </li>

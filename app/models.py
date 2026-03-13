@@ -127,6 +127,9 @@ class User(PaginatedAPIMixin, UserMixin, db.Model):
     notifications: so.WriteOnlyMapped['Notification'] = so.relationship(
         back_populates='user')
     tasks: so.WriteOnlyMapped['Task'] = so.relationship(back_populates='user')
+    user_tasks: so.WriteOnlyMapped['UserTask'] = so.relationship(
+    back_populates='user', cascade='all, delete-orphan'
+)
 
     def __repr__(self):
         return '<User {}>'.format(self.username)
@@ -354,3 +357,17 @@ class Task(db.Model):
     def get_progress(self):
         job = self.get_rq_job()
         return job.meta.get('progress', 0) if job is not None else 100
+    
+class UserTask(db.Model):
+    id: so.Mapped[int] = so.mapped_column(primary_key=True)
+    title: so.Mapped[str] = so.mapped_column(sa.String(100))
+    description: so.Mapped[Optional[str]] = so.mapped_column(sa.String(500))
+    status: so.Mapped[str] = so.mapped_column(sa.String(20), default="open")
+    priority: so.Mapped[str] = so.mapped_column(sa.String(20), default="medium")
+    created_at: so.Mapped[datetime] = so.mapped_column(
+        default=lambda: datetime.now(timezone.utc)
+    )
+    due_date: so.Mapped[Optional[datetime]]
+    user_id: so.Mapped[int] = so.mapped_column(sa.ForeignKey(User.id))
+
+    user: so.Mapped[User] = so.relationship(back_populates="user_tasks")

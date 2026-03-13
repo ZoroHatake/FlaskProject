@@ -1,7 +1,7 @@
 from flask import request
 from flask_wtf import FlaskForm
-from wtforms import StringField, SubmitField, TextAreaField
-from wtforms.validators import ValidationError, DataRequired, Length
+from wtforms import StringField, SubmitField, TextAreaField, SelectField, DateField
+from wtforms.validators import ValidationError, DataRequired, Length, Optional
 import sqlalchemy as sa
 from flask_babel import _, lazy_gettext as _l
 from app import db
@@ -51,3 +51,20 @@ class MessageForm(FlaskForm):
     message = TextAreaField(_l('Message'), validators=[
         DataRequired(), Length(min=1, max=140)])
     submit = SubmitField(_l('Submit'))
+
+
+class TaskForm(FlaskForm):
+    title = StringField(_l('Title'), validators=[DataRequired(), Length(max=100)])
+    description = TextAreaField(_l('Description'), validators=[Optional(), Length(max=500)])
+    status = SelectField(_l('Status'), choices=[
+        ('open', 'Open'),
+        ('in_progress', 'In Progress'),
+        ('done', 'Done')
+    ], validators=[DataRequired()])
+    priority = SelectField(_l('Priority'), choices=[
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High')
+    ], validators=[DataRequired()])
+    due_date = DateField(_l('Due Date'), format='%Y-%m-%d', validators=[Optional()])
+    submit = SubmitField(_l('Save'))

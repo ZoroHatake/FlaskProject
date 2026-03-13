@@ -1,14 +1,14 @@
 from datetime import datetime, timezone
 from flask import render_template, flash, redirect, url_for, request, g, \
-    current_app
+    current_app, abort
 from flask_login import current_user, login_required
 from flask_babel import _, get_locale
 import sqlalchemy as sa
 from langdetect import detect, LangDetectException
 from app import db
 from app.main.forms import EditProfileForm, EmptyForm, PostForm, SearchForm, \
-    MessageForm
-from app.models import User, Post, Message, Notification
+    MessageForm, TaskForm
+from app.models import User, Post, Message, Notification, UserTask
 from app.translate import translate
 from app.main import bp
 
@@ -26,29 +26,93 @@ def before_request():
 @bp.route('/index', methods=['GET', 'POST'])
 @login_required
 def index():
-    form = PostForm()
-    if form.validate_on_submit():
-        try:
-            language = detect(form.post.data)
-        except LangDetectException:
-            language = ''
-        post = Post(body=form.post.data, author=current_user,
-                    language=language)
-        db.session.add(post)
-        db.session.commit()
-        flash(_('Your post is now live!'))
-        return redirect(url_for('main.index'))
+    return redirect(url_for('main.task_list'))
+
+
+@bp.route('/tasks')
+@login_required
+def task_list():
     page = request.args.get('page', 1, type=int)
-    posts = db.paginate(current_user.following_posts(), page=page,
+    query = current_user.user_tasks.select().order_by(UserTask.created_at.desc())
+    tasks = db.paginate(query, page=page,
                         per_page=current_app.config['POSTS_PER_PAGE'],
                         error_out=False)
-    next_url = url_for('main.index', page=posts.next_num) \
-        if posts.has_next else None
-    prev_url = url_for('main.index', page=posts.prev_num) \
-        if posts.has_prev else None
-    return render_template('index.html', title=_('Home'), form=form,
-                           posts=posts.items, next_url=next_url,
-                           prev_url=prev_url)
+    next_url = url_for('main.task_list', page=tasks.next_num) if tasks.has_next else None
+    prev_url = url_for('main.task_list', page=tasks.prev_num) if tasks.has_prev else None
+    return render_template('tasks.html', title='My Tasks',
+                           tasks=tasks.items, next_url=next_url, prev_url=prev_url)
+
+@bp.route('/tasks/create', methods=['GET', 'POST'])
+@login_required
+def create_task():
+    form = TaskForm()
+    if form.validate_on_submit():
+        due_date = None
+        if form.due_date.data:
+            due_date = datetime.combine(
+                form.due_date.data,
+                datetime.min.time(),
+                tzinfo=timezone.utc
+            )
+
+        task = UserTask(
+            title=form.title.data,
+            description=form.description.data,
+            status=form.status.data,
+            priority=form.priority.data,
+            due_date=due_date,
+            user=current_user
+        )
+        db.session.add(task)
+        db.session.commit()
+        flash('Task created successfully.')
+        return redirect(url_for('main.task_list'))
+    return render_template('task_form.html', title='Create Task', form=form)
+
+
+@bp.route('/tasks/<int:id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_task(id):
+    task = db.get_or_404(UserTask, id)
+    if task.user_id != current_user.id:
+        abort(403)
+
+    form = TaskForm()
+    if form.validate_on_submit():
+        task.title = form.title.data
+        task.description = form.description.data
+        task.status = form.status.data
+        task.priority = form.priority.data
+        task.due_date = datetime.combine(
+            form.due_date.data,
+            datetime.min.time(),
+            tzinfo=timezone.utc
+        ) if form.due_date.data else None
+        db.session.commit()
+        flash('Task updated successfully.')
+        return redirect(url_for('main.task_list'))
+
+    if request.method == 'GET':
+        form.title.data = task.title
+        form.description.data = task.description
+        form.status.data = task.status
+        form.priority.data = task.priority
+        form.due_date.data = task.due_date.date() if task.due_date else None
+
+    return render_template('task_form.html', title='Edit Task', form=form)
+
+
+@bp.route('/tasks/<int:id>/delete', methods=['POST'])
+@login_required
+def delete_task(id):
+    task = db.get_or_404(UserTask, id)
+    if task.user_id != current_user.id:
+        abort(403)
+
+    db.session.delete(task)
+    db.session.commit()
+    flash('Task deleted successfully.')
+    return redirect(url_for('main.task_list'))
 
 
 @bp.route('/explore')

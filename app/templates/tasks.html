@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>My Tasks</h1>
+
+<p>
+    <a href="{{ url_for('main.create_task') }}" class="btn btn-primary">Create Task</a>
+</p>
+
+{% if tasks %}
+    {% for task in tasks %}
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5>{{ task.title }}</h5>
+            <p>{{ task.description }}</p>
+            <p>
+                Status: {{ task.status }} |
+                Priority: {{ task.priority }}
+            </p>
+
+            <a href="{{ url_for('main.edit_task', id=task.id) }}" class="btn btn-sm btn-secondary">Edit</a>
+
+            <form action="{{ url_for('main.delete_task', id=task.id) }}" method="post" style="display:inline;">
+                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+{% else %}
+    <p>No tasks yet.</p>
+{% endif %}
+
+{% endblock %}
