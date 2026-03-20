@@ -16,21 +16,26 @@ from app import db, login
 from app.search import add_to_index, remove_from_index, query_index
 
 
+# Mixin für Suchfunktion über den Suchindex
 class SearchableMixin:
     @classmethod
     def search(cls, expression, page, per_page):
         ids, total = query_index(cls.__tablename__, expression, page, per_page)
         if total == 0:
             return [], 0
+
+        # Reihenfolge der Treffer aus dem Suchindex beibehalten
         when = []
         for i in range(len(ids)):
             when.append((ids[i], i))
+
         query = sa.select(cls).where(cls.id.in_(ids)).order_by(
             db.case(*when, value=cls.id))
         return db.session.scalars(query), total
 
     @classmethod
     def before_commit(cls, session):
+        # Änderungen vor dem Commit zwischenspeichern
         session._changes = {
             'add': list(session.new),
             'update': list(session.dirty),
@@ -39,6 +44,7 @@ class SearchableMixin:
 
     @classmethod
     def after_commit(cls, session):
+        # Suchindex nach Commit aktualisieren
         for obj in session._changes['add']:
             if isinstance(obj, SearchableMixin):
                 add_to_index(obj.__tablename__, obj)
@@ -52,19 +58,24 @@ class SearchableMixin:
 
     @classmethod
     def reindex(cls):
+        # Gesamten Suchindex für diese Klasse neu aufbauen
         for obj in db.session.scalars(sa.select(cls)):
             add_to_index(cls.__tablename__, obj)
 
 
+# Events zum automatischen Aktualisieren des Suchindex
 db.event.listen(db.session, 'before_commit', SearchableMixin.before_commit)
 db.event.listen(db.session, 'after_commit', SearchableMixin.after_commit)
 
 
+# Hilfsklasse für paginierte API-Antworten
 class PaginatedAPIMixin(object):
     @staticmethod
     def to_collection_dict(query, page, per_page, endpoint, **kwargs):
         resources = db.paginate(query, page=page, per_page=per_page,
                                 error_out=False)
+
+        # API-Antwort mit Daten, Metadaten und Navigationslinks
         data = {
             'items': [item.to_dict() for item in resources.items],
             '_meta': {
@@ -85,6 +96,7 @@ class PaginatedAPIMixin(object):
         return data
 
 
+# Zwischentabelle für die Follower-Beziehung zwischen Usern
 followers = sa.Table(
     'followers',
     db.metadata,
@@ -95,6 +107,7 @@ followers = sa.Table(
 )
 
 
+# User-Modell mit Login-, API- und Social-Funktionen
 class User(PaginatedAPIMixin, UserMixin, db.Model):
     id: so.Mapped[int] = so.mapped_column(primary_key=True)
     username: so.Mapped[str] = so.mapped_column(sa.String(64), index=True,
@@ -110,6 +123,7 @@ class User(PaginatedAPIMixin, UserMixin, db.Model):
         sa.String(32), index=True, unique=True)
     token_expiration: so.Mapped[Optional[datetime]]
 
+    # Beziehungen zu anderen Modellen
     posts: so.WriteOnlyMapped['Post'] = so.relationship(
         back_populates='author')
     following: so.WriteOnlyMapped['User'] = so.relationship(
@@ -128,44 +142,53 @@ class User(PaginatedAPIMixin, UserMixin, db.Model):
         back_populates='user')
     tasks: so.WriteOnlyMapped['Task'] = so.relationship(back_populates='user')
     user_tasks: so.WriteOnlyMapped['UserTask'] = so.relationship(
-    back_populates='user', cascade='all, delete-orphan'
-)
+        back_populates='user', cascade='all, delete-orphan'
+    )
 
     def __repr__(self):
         return '<User {}>'.format(self.username)
 
+    # Passwort gehasht speichern
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
+    # Passwort prüfen
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
+    # Avatar-URL via Gravatar erzeugen
     def avatar(self, size):
         digest = md5(self.email.lower().encode('utf-8')).hexdigest()
         return f'https://www.gravatar.com/avatar/{digest}?d=identicon&s={size}'
 
+    # Anderen User folgen
     def follow(self, user):
         if not self.is_following(user):
             self.following.add(user)
 
+    # Anderen User nicht mehr folgen
     def unfollow(self, user):
         if self.is_following(user):
             self.following.remove(user)
 
+    # Prüfen, ob diesem User bereits gefolgt wird
     def is_following(self, user):
         query = self.following.select().where(User.id == user.id)
         return db.session.scalar(query) is not None
 
+    # Anzahl Follower berechnen
     def followers_count(self):
         query = sa.select(sa.func.count()).select_from(
             self.followers.select().subquery())
         return db.session.scalar(query)
 
+    # Anzahl gefolgter User berechnen
     def following_count(self):
         query = sa.select(sa.func.count()).select_from(
             self.following.select().subquery())
         return db.session.scalar(query)
 
+    # Posts von gefolgten Usern und eigene Posts laden
     def following_posts(self):
         Author = so.aliased(User)
         Follower = so.aliased(User)
@@ -181,11 +204,13 @@ class User(PaginatedAPIMixin, UserMixin, db.Model):
             .order_by(Post.timestamp.desc())
         )
 
+    # Token für Passwort-Reset erzeugen
     def get_reset_password_token(self, expires_in=600):
         return jwt.encode(
             {'reset_password': self.id, 'exp': time() + expires_in},
             current_app.config['SECRET_KEY'], algorithm='HS256')
 
+    # Passwort-Reset-Token prüfen und User zurückgeben
     @staticmethod
     def verify_reset_password_token(token):
         try:
@@ -195,6 +220,7 @@ class User(PaginatedAPIMixin, UserMixin, db.Model):
             return
         return db.session.get(User, id)
 
+    # Anzahl ungelesener Nachrichten berechnen
     def unread_message_count(self):
         last_read_time = self.last_message_read_time or datetime(1900, 1, 1)
         query = sa.select(Message).where(Message.recipient == self,
@@ -202,6 +228,7 @@ class User(PaginatedAPIMixin, UserMixin, db.Model):
         return db.session.scalar(sa.select(sa.func.count()).select_from(
             query.subquery()))
 
+    # Notification mit bestimmtem Namen aktualisieren oder neu anlegen
     def add_notification(self, name, data):
         db.session.execute(self.notifications.delete().where(
             Notification.name == name))
@@ -209,6 +236,7 @@ class User(PaginatedAPIMixin, UserMixin, db.Model):
         db.session.add(n)
         return n
 
+    # Hintergrundtask über RQ starten
     def launch_task(self, name, description, *args, **kwargs):
         rq_job = current_app.task_queue.enqueue(f'app.tasks.{name}', self.id,
                                                 *args, **kwargs)
@@ -217,20 +245,24 @@ class User(PaginatedAPIMixin, UserMixin, db.Model):
         db.session.add(task)
         return task
 
+    # Alle laufenden Hintergrundtasks des Users holen
     def get_tasks_in_progress(self):
         query = self.tasks.select().where(Task.complete == False)
         return db.session.scalars(query)
 
+    # Einen bestimmten laufenden Task nach Name holen
     def get_task_in_progress(self, name):
         query = self.tasks.select().where(Task.name == name,
                                           Task.complete == False)
         return db.session.scalar(query)
 
+    # Anzahl Posts des Users berechnen
     def posts_count(self):
         query = sa.select(sa.func.count()).select_from(
             self.posts.select().subquery())
         return db.session.scalar(query)
 
+    # User als Dictionary für API-Ausgabe umwandeln
     def to_dict(self, include_email=False):
         data = {
             'id': self.id,
@@ -252,6 +284,7 @@ class User(PaginatedAPIMixin, UserMixin, db.Model):
             data['email'] = self.email
         return data
 
+    # Dictionary-Daten ins User-Objekt übernehmen
     def from_dict(self, data, new_user=False):
         for field in ['username', 'email', 'about_me']:
             if field in data:
@@ -259,6 +292,7 @@ class User(PaginatedAPIMixin, UserMixin, db.Model):
         if new_user and 'password' in data:
             self.set_password(data['password'])
 
+    # API-Token erzeugen oder vorhandenen weiterverwenden
     def get_token(self, expires_in=3600):
         now = datetime.now(timezone.utc)
         if self.token and self.token_expiration.replace(
@@ -269,10 +303,12 @@ class User(PaginatedAPIMixin, UserMixin, db.Model):
         db.session.add(self)
         return self.token
 
+    # API-Token ungültig machen
     def revoke_token(self):
         self.token_expiration = datetime.now(timezone.utc) - timedelta(
             seconds=1)
 
+    # API-Token prüfen und passenden User zurückgeben
     @staticmethod
     def check_token(token):
         user = db.session.scalar(sa.select(User).where(User.token == token))
@@ -282,13 +318,16 @@ class User(PaginatedAPIMixin, UserMixin, db.Model):
         return user
 
 
+# Flask-Login lädt User anhand der ID aus der Session
 @login.user_loader
 def load_user(id):
     return db.session.get(User, int(id))
 
 
+# Post-Modell, durchsuchbar über SearchableMixin
 class Post(SearchableMixin, db.Model):
     __searchable__ = ['body']
+
     id: so.Mapped[int] = so.mapped_column(primary_key=True)
     body: so.Mapped[str] = so.mapped_column(sa.String(140))
     timestamp: so.Mapped[datetime] = so.mapped_column(
@@ -303,6 +342,7 @@ class Post(SearchableMixin, db.Model):
         return '<Post {}>'.format(self.body)
 
 
+# Nachrichten zwischen Usern
 class Message(db.Model):
     id: so.Mapped[int] = so.mapped_column(primary_key=True)
     sender_id: so.Mapped[int] = so.mapped_column(sa.ForeignKey(User.id),
@@ -324,6 +364,7 @@ class Message(db.Model):
         return '<Message {}>'.format(self.body)
 
 
+# Benachrichtigungen für User
 class Notification(db.Model):
     id: so.Mapped[int] = so.mapped_column(primary_key=True)
     name: so.Mapped[str] = so.mapped_column(sa.String(128), index=True)
@@ -334,10 +375,12 @@ class Notification(db.Model):
 
     user: so.Mapped[User] = so.relationship(back_populates='notifications')
 
+    # JSON-Daten der Notification zurückgeben
     def get_data(self):
         return json.loads(str(self.payload_json))
 
 
+# Hintergrundtask, der über Redis/RQ ausgeführt wird
 class Task(db.Model):
     id: so.Mapped[str] = so.mapped_column(sa.String(36), primary_key=True)
     name: so.Mapped[str] = so.mapped_column(sa.String(128), index=True)
@@ -347,6 +390,7 @@ class Task(db.Model):
 
     user: so.Mapped[User] = so.relationship(back_populates='tasks')
 
+    # Zugehörigen RQ-Job aus Redis laden
     def get_rq_job(self):
         try:
             rq_job = rq.job.Job.fetch(self.id, connection=current_app.redis)
@@ -354,10 +398,13 @@ class Task(db.Model):
             return None
         return rq_job
 
+    # Fortschritt des Jobs aus den Metadaten lesen
     def get_progress(self):
         job = self.get_rq_job()
         return job.meta.get('progress', 0) if job is not None else 100
-    
+
+
+# Eigenes Task-Modell der ToDo-Anwendung
 class UserTask(db.Model):
     id: so.Mapped[int] = so.mapped_column(primary_key=True)
     title: so.Mapped[str] = so.mapped_column(sa.String(100))
@@ -370,4 +417,5 @@ class UserTask(db.Model):
     due_date: so.Mapped[Optional[datetime]]
     user_id: so.Mapped[int] = so.mapped_column(sa.ForeignKey(User.id))
 
+    # Beziehung zum Besitzer der Aufgabe
     user: so.Mapped[User] = so.relationship(back_populates="user_tasks")
