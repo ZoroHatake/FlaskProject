@@ -2,24 +2,27 @@
 
 {% block content %}
 <h1>My Tasks</h1>
-
+<!-- Button zum Erstellen eines neuen Tasks -->
 <p>
     <a href="{{ url_for('main.create_task') }}" class="btn btn-primary">Create Task</a>
 </p>
-
+<!-- Prüfen, ob Tasks vorhanden sind -->
 {% if tasks %}
+    <!-- Durch alle Tasks iterieren -->
     {% for task in tasks %}
     <div class="card mb-3">
         <div class="card-body">
+            <!-- Titel und Beschreibung anzeigen -->
             <h5>{{ task.title }}</h5>
             <p>{{ task.description }}</p>
+             <!-- Status und Priorität anzeigen -->
             <p>
                 Status: {{ task.status }} |
                 Priority: {{ task.priority }}
             </p>
-
+            <!-- Button zum Bearbeiten -->
             <a href="{{ url_for('main.edit_task', id=task.id) }}" class="btn btn-sm btn-secondary">Edit</a>
-
+            <!-- Formular zum Löschen eines Tasks -->
             <form action="{{ url_for('main.delete_task', id=task.id) }}" method="post" style="display:inline;">
                 <button type="submit" class="btn btn-sm btn-danger">Delete</button>
             </form>
@@ -27,6 +30,7 @@
     </div>
     {% endfor %}
 {% else %}
+<!-- Anzeige, falls keine Tasks vorhanden sind -->
     <p>No tasks yet.</p>
 {% endif %}
 
