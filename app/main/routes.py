@@ -13,6 +13,9 @@ from app.translate import translate
 from app.main import bp
 
 
+# Diese Funktion wird vor jeder Anfrage an die Applikation ausgeführt.
+# Sie aktualisiert bei angemeldeten Benutzern den letzten Zugriff
+# und stellt das Suchformular sowie die aktuelle Sprache bereit.
 @bp.before_app_request
 def before_request():
     if current_user.is_authenticated:
@@ -22,6 +25,8 @@ def before_request():
     g.locale = str(get_locale())
 
 
+# Startseite der Applikation.
+# Statt einer separaten Startansicht wird direkt auf die Task-Übersicht weitergeleitet.
 @bp.route('/', methods=['GET', 'POST'])
 @bp.route('/index', methods=['GET', 'POST'])
 @login_required
@@ -29,6 +34,8 @@ def index():
     return redirect(url_for('main.task_list'))
 
 
+# Zeigt die Task-Liste des aktuell angemeldeten Benutzers an.
+# Die Aufgaben werden nach Erstellungsdatum absteigend sortiert und paginiert dargestellt.
 @bp.route('/tasks')
 @login_required
 def task_list():
@@ -42,6 +49,9 @@ def task_list():
     return render_template('tasks.html', title='My Tasks',
                            tasks=tasks.items, next_url=next_url, prev_url=prev_url)
 
+
+# Erstellt eine neue Aufgabe für den aktuell angemeldeten Benutzer.
+# Falls ein Fälligkeitsdatum angegeben wurde, wird dieses in ein UTC-Datum umgewandelt.
 @bp.route('/tasks/create', methods=['GET', 'POST'])
 @login_required
 def create_task():
@@ -70,6 +80,8 @@ def create_task():
     return render_template('task_form.html', title='Create Task', form=form)
 
 
+# Bearbeitet eine bestehende Aufgabe.
+# Vor der Bearbeitung wird geprüft, ob die Aufgabe dem aktuell angemeldeten Benutzer gehört.
 @bp.route('/tasks/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit_task(id):
@@ -92,6 +104,8 @@ def edit_task(id):
         flash('Task updated successfully.')
         return redirect(url_for('main.task_list'))
 
+    # Beim ersten Laden des Formulars werden die bestehenden Daten
+    # der Aufgabe in die Formularfelder übernommen.
     if request.method == 'GET':
         form.title.data = task.title
         form.description.data = task.description
@@ -102,6 +116,8 @@ def edit_task(id):
     return render_template('task_form.html', title='Edit Task', form=form)
 
 
+# Löscht eine Aufgabe.
+# Auch hier wird sichergestellt, dass nur der Besitzer die Aufgabe löschen darf.
 @bp.route('/tasks/<int:id>/delete', methods=['POST'])
 @login_required
 def delete_task(id):
@@ -115,6 +131,8 @@ def delete_task(id):
     return redirect(url_for('main.task_list'))
 
 
+# Zeigt alle Beiträge aller Benutzer an.
+# Diese Ansicht dient dem öffentlichen Erkunden der vorhandenen Posts.
 @bp.route('/explore')
 @login_required
 def explore():
@@ -132,6 +150,8 @@ def explore():
                            prev_url=prev_url)
 
 
+# Profilseite eines bestimmten Benutzers.
+# Es werden dessen Beiträge paginiert angezeigt.
 @bp.route('/user/<username>')
 @login_required
 def user(username):
@@ -150,6 +170,8 @@ def user(username):
                            next_url=next_url, prev_url=prev_url, form=form)
 
 
+# Kleine Popup-Ansicht eines Benutzerprofils.
+# Diese Route wird typischerweise für Kurzinfos in der Benutzeroberfläche verwendet.
 @bp.route('/user/<username>/popup')
 @login_required
 def user_popup(username):
@@ -158,6 +180,8 @@ def user_popup(username):
     return render_template('user_popup.html', user=user, form=form)
 
 
+# Ermöglicht dem angemeldeten Benutzer, sein Profil zu bearbeiten.
+# Bei einem GET-Request werden die aktuellen Benutzerdaten ins Formular geladen.
 @bp.route('/edit_profile', methods=['GET', 'POST'])
 @login_required
 def edit_profile():
@@ -175,6 +199,8 @@ def edit_profile():
                            form=form)
 
 
+# Folgt einem anderen Benutzer.
+# Es wird geprüft, ob der Zielbenutzer existiert und ob man nicht sich selbst folgt.
 @bp.route('/follow/<username>', methods=['POST'])
 @login_required
 def follow(username):
@@ -196,6 +222,8 @@ def follow(username):
         return redirect(url_for('main.index'))
 
 
+# Entfernt das Folgen eines Benutzers.
+# Auch hier wird geprüft, ob der Benutzer existiert und nicht der eigene Account ist.
 @bp.route('/unfollow/<username>', methods=['POST'])
 @login_required
 def unfollow(username):
@@ -217,6 +245,8 @@ def unfollow(username):
         return redirect(url_for('main.index'))
 
 
+# Übersetzt einen Text über die integrierte Übersetzungsfunktion.
+# Die Daten werden als JSON empfangen und ebenfalls als JSON zurückgegeben.
 @bp.route('/translate', methods=['POST'])
 @login_required
 def translate_text():
@@ -226,6 +256,8 @@ def translate_text():
                               data['dest_language'])}
 
 
+# Suchfunktion für Beiträge.
+# Verwendet das globale Suchformular, das in before_request vorbereitet wird.
 @bp.route('/search')
 @login_required
 def search():
@@ -242,6 +274,8 @@ def search():
                            next_url=next_url, prev_url=prev_url)
 
 
+# Sendet eine private Nachricht an einen anderen Benutzer.
+# Nach dem Speichern wird zusätzlich die Benachrichtigung für ungelesene Nachrichten aktualisiert.
 @bp.route('/send_message/<recipient>', methods=['GET', 'POST'])
 @login_required
 def send_message(recipient):
@@ -260,6 +294,8 @@ def send_message(recipient):
                            form=form, recipient=recipient)
 
 
+# Zeigt die empfangenen Nachrichten des aktuellen Benutzers an.
+# Beim Öffnen werden alle Nachrichten als gelesen markiert.
 @bp.route('/messages')
 @login_required
 def messages():
@@ -280,6 +316,8 @@ def messages():
                            next_url=next_url, prev_url=prev_url)
 
 
+# Startet einen Hintergrundtask zum Exportieren der Beiträge.
+# Falls bereits ein Export läuft, wird kein zweiter Task gestartet.
 @bp.route('/export_posts')
 @login_required
 def export_posts():
@@ -291,6 +329,8 @@ def export_posts():
     return redirect(url_for('main.user', username=current_user.username))
 
 
+# Liefert neue Benachrichtigungen seit einem bestimmten Zeitpunkt als JSON zurück.
+# Diese Route eignet sich für periodische AJAX-Abfragen im Frontend.
 @bp.route('/notifications')
 @login_required
 def notifications():
