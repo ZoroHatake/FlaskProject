@@ -1,13 +1,20 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <!-- Grundlegende Meta-Angaben für Zeichensatz und responsive Darstellung -->
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- Seitentitel:
+         Falls ein Titel übergeben wurde, wird dieser zusammen mit dem App-Namen angezeigt.
+         Andernfalls wird ein Standardtitel verwendet. -->
     {% if title %}
     <title>{{ title }} - Taskboard</title>
     {% else %}
     <title>{{ _('Willkommen zum Taskboard') }}</title>
     {% endif %}
+
+    <!-- Einbindung von Bootstrap für Layout und Styling -->
     <link
         href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
         rel="stylesheet"
@@ -15,22 +22,35 @@
         crossorigin="anonymous">
   </head>
   <body>
+    <!-- Navigationsleiste der Anwendung -->
     <nav class="navbar navbar-expand-lg bg-body-tertiary">
       <div class="container">
+        <!-- Logo / Startlink zur Hauptseite -->
         <a class="navbar-brand" href="{{ url_for('main.index') }}">Taskboard</a>
+
+        <!-- Button für mobile Ansicht -->
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
           <span class="navbar-toggler-icon"></span>
         </button>
+
+        <!-- Navigationsinhalte -->
         <div class="collapse navbar-collapse" id="navbarSupportedContent">
           <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+            <!-- Link zur Startseite -->
             <li class="nav-item">
               <a class="nav-link" aria-current="page" href="{{ url_for('main.index') }}">{{ _('Home') }}</a>
+
+            <!-- Link zur Task-Übersicht -->
             <li class="nav-item">
-           <a class="nav-link" aria-current="page" href="{{ url_for('main.task_list') }}">Tasks</a>
-          </li>
+              <a class="nav-link" aria-current="page" href="{{ url_for('main.task_list') }}">Tasks</a>
+            </li>
+
+            <!-- Link zur Explore-Seite -->
             <li class="nav-item">
               <a class="nav-link" aria-current="page" href="{{ url_for('main.explore') }}">{{ _('Explore') }}</a>
             </li>
+
+            <!-- Suchformular wird nur angezeigt, wenn es global verfügbar ist -->
             {% if g.search_form %}
             <form class="navbar-form navbar-left" method="get" action="{{ url_for('main.search') }}">
                 <div class="form-group">
@@ -39,12 +59,16 @@
             </form>
             {% endif %}
           </ul>
+
+          <!-- Rechte Navigationsseite:
+               Je nach Login-Status werden Login oder Benutzerfunktionen angezeigt -->
           <ul class="navbar-nav mb-2 mb-lg-0">
             {% if current_user.is_anonymous %}
             <li class="nav-item">
               <a class="nav-link" aria-current="page" href="{{ url_for('auth.login') }}">{{ _('Login') }}</a>
             </li>
             {% else %}
+            <!-- Link zu den Nachrichten inkl. Badge für ungelesene Nachrichten -->
             <li class="nav-item">
               <a class="nav-link" aria-current="page" href="{{ url_for('main.messages') }}">{{ _('Messages') }}
                 {% set unread_message_count = current_user.unread_message_count() %}
@@ -55,9 +79,13 @@
                 </span>
               </a>
             </li>
+
+            <!-- Link zum eigenen Profil -->
             <li class="nav-item">
               <a class="nav-link" aria-current="page" href="{{ url_for('main.user', username=current_user.username) }}">{{ _('Profile') }}</a>
             </li>
+
+            <!-- Logout-Link -->
             <li class="nav-item">
               <a class="nav-link" aria-current="page" href="{{ url_for('auth.logout') }}">{{ _('Logout') }}</a>
             </li>
@@ -66,7 +94,11 @@
         </div>
       </div>
     </nav>
+
+    <!-- Hauptinhalt der Seite -->
     <div class="container mt-3">
+
+      <!-- Anzeige laufender Hintergrundtasks des angemeldeten Benutzers -->
       {% if current_user.is_authenticated %}
       {% with tasks = current_user.get_tasks_in_progress() %}
       {% if tasks %}
@@ -80,6 +112,7 @@
       {% endwith %}
       {% endif %}
 
+      <!-- Anzeige von Flash-Messages, z.B. Erfolgsmeldungen oder Hinweise -->
       {% with messages = get_flashed_messages() %}
       {% if messages %}
         {% for message in messages %}
@@ -87,16 +120,25 @@
         {% endfor %}
       {% endif %}
       {% endwith %}
+
+      <!-- Platzhalter für den individuellen Seiteninhalt -->
       {% block content %}{% endblock %}
     </div>
+
+    <!-- Bootstrap JavaScript Bundle -->
     <script
         src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL"
         crossorigin="anonymous">
     </script>
+
+    <!-- Einbindung von Flask-Moment für lokalisierte Datums- und Zeitdarstellung -->
     {{ moment.include_moment() }}
     {{ moment.lang(g.locale) }}
+
     <script>
+      // Übersetzt einen Textinhalt über den /translate-Endpunkt
+      // und schreibt das Ergebnis in ein Ziel-Element.
       async function translate(sourceElem, destElem, sourceLang, destLang) {
         document.getElementById(destElem).innerHTML = 
           '<img src="{{ url_for('static', filename='loading.gif') }}">';
@@ -113,6 +155,8 @@
         document.getElementById(destElem).innerText = data.text;
       }
 
+      // Initialisiert Bootstrap-Popovers für Benutzerlinks.
+      // Die Popup-Inhalte werden erst bei Bedarf per Fetch nachgeladen.
       function initialize_popovers() {
         const popups = document.getElementsByClassName('user_popup');
         for (let i = 0; i < popups.length; i++) {
@@ -126,7 +170,9 @@
             container: popups[i],
             customClass: 'd-inline',
           });
+
           popups[i].addEventListener('show.bs.popover', async (ev) => {
+            // Verhindert mehrfaches Nachladen desselben Popups
             if (ev.target.popupLoaded) {
               return;
             }
@@ -143,12 +189,14 @@
       }
       document.addEventListener('DOMContentLoaded', initialize_popovers);
 
+      // Aktualisiert die Anzeige der ungelesenen Nachrichten
       function set_message_count(n) {
         const count = document.getElementById('message_count');
         count.innerText = n;
         count.style.visibility = n ? 'visible' : 'hidden';
       }
 
+      // Aktualisiert den Fortschritt eines Hintergrundtasks in der Oberfläche
       function set_task_progress(task_id, progress) {
         const progressElement = document.getElementById(task_id + '-progress');
         if (progressElement) {
@@ -157,11 +205,14 @@
       }
 
       {% if current_user.is_authenticated %}
+      // Fragt periodisch neue Benachrichtigungen vom Server ab.
+      // Damit werden z.B. Message-Badge und Task-Fortschritt dynamisch aktualisiert.
       function initialize_notifications() {
         let since = 0;
         setInterval(async function() {
           const response = await fetch('{{ url_for('main.notifications') }}?since=' + since);
           const notifications = await response.json();
+
           for (let i = 0; i < notifications.length; i++) {
             switch (notifications[i].name) {
               case 'unread_message_count':
